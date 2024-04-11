@@ -1,7 +1,5 @@
-import os
 import camb
 import numpy as np
-from matplotlib import pyplot as plt
 import healpy as hp
 
 

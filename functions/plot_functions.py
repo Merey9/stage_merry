@@ -1,4 +1,4 @@
-from fisher_matrix import *
+from functions.fisher_matrix import *
 import numpy as np
 from matplotlib import pyplot as plt
 
@@ -17,6 +17,7 @@ def plot_spectrum(
     charact_detec=None,
     keys_to_plot=["TT", "EE", "BB", "TE"],
     var_fac=1,
+    filename="Figures/plot_spetrum_test.png"
 ):
 
     ls = np.arange(2, lmax)
@@ -84,12 +85,13 @@ def plot_spectrum(
     axs[0].legend(loc="lower left")
     axs[0].set_ylabel("l(l+1)Cl")
     plt.tight_layout()
-    plt.savefig("Figures/plot_spetrum_test.png")
+    plt.savefig(filename)
 
 
 def plot_params_var(
-    fisher_matrix, planck_var, params, filename="Figures/params_results"
-):
+    fisher_matrix, planck_var, params, lmax, filename="Figures/params_results"
+):  
+
     fisher_var = fisher_to_sigmas(fisher_matrix)
     fisher_var_norm = fisher_var / np.array(list(params.values()))
     planck_var_norm = np.array(list(planck_var.values())) / np.array(
@@ -120,5 +122,6 @@ def plot_params_var(
     )
     plt.xticks(tick_positions, tick_labels)
     plt.ylabel("sigma(param)/param")
+    plt.title('LMAX='+str(lmax))
     plt.legend()
     plt.savefig(filename)

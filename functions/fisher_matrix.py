@@ -1,6 +1,5 @@
 import numpy as np
-from Simu.simu import mk_ini_spectra
-import camb
+from functions.simu import *
 from matplotlib import pyplot as plt
 
 
