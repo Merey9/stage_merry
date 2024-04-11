@@ -1,6 +1,7 @@
-from functions.fisher_matrix import *
 import numpy as np
 from matplotlib import pyplot as plt
+from functions.simu import *
+from functions.fisher_matrix import *
 
 
 def plot_spectrum(
@@ -17,7 +18,7 @@ def plot_spectrum(
     charact_detec=None,
     keys_to_plot=["TT", "EE", "BB", "TE"],
     var_fac=1,
-    filename="Figures/plot_spetrum_test.png"
+    filename="Figures/plot_spetrum_test.png",
 ):
 
     ls = np.arange(2, lmax)
@@ -72,16 +73,22 @@ def plot_spectrum(
                 label=band,
             )
             axs[i].plot(ls, dls[key], color="black")
-            axs[i].semilogy()
-            axs[i].set_ylim(
-                min(min(value) for key, value in dls.items() if key in keys_to_plot)
-                / 3,
-                max(max(value) for key, value in dls.items() if key in keys_to_plot)
-                * 3,
-            )
+
             axs[i].set_title(key)
             axs[i].set_xlabel("l")
             axs[i].set_xlim(0, lmax)
+            if key not in ["TE"]:
+                axs[i].semilogy()
+                axs[i].set_ylim(
+                    min(value for value in list(dls[key]) if key in keys_to_plot),
+                    max(value for value in list(dls[key]) if key in keys_to_plot) * 10,
+                )
+            else:
+                axs[i].set_ylim(
+                    min(value for value in list(dls[key]) if key in keys_to_plot) * 1.5,
+                    max(value for value in list(dls[key]) if key in keys_to_plot) * 1.5,
+                )
+
     axs[0].legend(loc="lower left")
     axs[0].set_ylabel("l(l+1)Cl")
     plt.tight_layout()
@@ -90,7 +97,7 @@ def plot_spectrum(
 
 def plot_params_var(
     fisher_matrix, planck_var, params, lmax, filename="Figures/params_results"
-):  
+):
 
     fisher_var = fisher_to_sigmas(fisher_matrix)
     fisher_var_norm = fisher_var / np.array(list(params.values()))
@@ -122,6 +129,68 @@ def plot_params_var(
     )
     plt.xticks(tick_positions, tick_labels)
     plt.ylabel("sigma(param)/param")
-    plt.title('LMAX='+str(lmax))
+    plt.title("LMAX=" + str(lmax))
     plt.legend()
+    plt.savefig(filename)
+
+
+def plot_spectra_params(
+    cosmo_params={
+        "ombh2": 0.022,
+        "omch2": 0.122,
+        "cosmomc_theta": 1.04 / 100,
+        "tau": 0.0544,
+        "As": 2e-9,
+        "ns": 0.965,
+    },
+    spectra="total",
+    lmax=1000,
+    keys_to_plot=["TT", "EE"],
+    param_to_vary="ombh2",
+    param_facs=[0.8, 0.9, 1, 1.1, 1.2],
+    filename="Figures/plot_spetrum_param_variation.png",
+):
+
+    ls = np.arange(2, lmax)
+    fac = ls * (ls + 1)
+    fig, axs = plt.subplots(1, len(keys_to_plot), figsize=(5 * len(keys_to_plot), 5))
+    plt.tight_layout()
+
+    cmap = plt.get_cmap("twilight")
+    norm = plt.Normalize(min(param_facs) - (max(param_facs) - min(param_facs)) * 0.5,
+                     max(param_facs) + (max(param_facs) - min(param_facs)) * 0.5)
+    colors = [cmap(norm(value)) for value in param_facs]
+    for c, param_fac in enumerate(param_facs):
+        cosmo_params_fac = cosmo_params.copy()
+        cosmo_params_fac[param_to_vary] *= param_fac
+        cls = mk_ini_spectra(cosmo_params_fac, spectra, lmax, cut_2_l=True)
+        dls = {}
+        for key in cls.keys():
+            dls[key] = cls[key] * fac
+        for i, key in enumerate(keys_to_plot):
+            axs[i].plot(
+                ls,
+                dls[key],
+                label=param_to_vary + "=" + str(cosmo_params_fac[param_to_vary]),
+                color=colors[c],
+            )
+
+    cls = mk_ini_spectra(cosmo_params, spectra, lmax, cut_2_l=True)
+    dls = {}
+    for i, key in enumerate(keys_to_plot):
+        dls[key] = cls[key] * fac
+        axs[i].plot(
+            ls,
+            dls[key],
+            label=param_to_vary + "=" + str(cosmo_params[param_to_vary]),
+            color="black",
+            linewidth=2,
+        )
+        axs[i].set_title(key)
+        axs[i].set_xlabel("l")
+        axs[i].set_xlim(0, lmax)
+
+    axs[0].legend()
+    axs[0].set_ylabel("l(l+1)Cl")
+    plt.tight_layout()
     plt.savefig(filename)
