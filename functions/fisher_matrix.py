@@ -1,10 +1,18 @@
+import sys
+
+sys.path.append("/data/stage_merry/functions")
 import numpy as np
-from functions.simu import *
+from simu import *
 from matplotlib import pyplot as plt
+import copy
+from birefringence_functions import *
+
+
+list_keys = ["TT", "EE", "BB", "TE", "TB", "EB"]
 
 
 def get_cov_matrix(
-    data: dict, nls=None, cut_2_l=False, data_cls_bool=False, plot_noise=None, fsky=0.7
+    data: dict, nls=None, cut_2_l=False, data_cls_bool=True, plot_noise=None, fsky=1, ls=None
 ) -> np.ndarray:
     """Compute the covariance matrix from Cls and Nls
     Args:
@@ -24,58 +32,73 @@ def get_cov_matrix(
     else:
         first_l = 0
 
-    assert list(data.keys()) == ["TT", "EE", "BB", "TE"]
-
-    if data_cls_bool:
-        cls = data
-    else:
-        cls = {}
-        for name in data.keys():
-            cls[name] = data[name].mean().to_numpy()[first_l:-1]
-
-    ls = np.arange(len(cls["TT"])) + first_l
+    cls = data.copy()
+    if ls == None:
+        ls = np.arange(len(cls[list(cls.keys())[0]])) + first_l
     nu = 2 * ls + 1
 
-    cls_noise = {}
-    if nls == None:
-        cls_noise = cls
-    else:
-        assert list(nls.keys()) == ["TT", "EE", "BB", "TE"]
-        for key in cls.keys():
-            cls_noise[key] = cls[key] + nls[key]
-
-    if plot_noise != None:
-        plt.plot(nls[plot_noise] * ls * (ls + 1))
-        plt.plot(cls[plot_noise] * ls * (ls + 1))
-        plt.plot(cls_noise[plot_noise] * ls * (ls + 1))
-        plt.semilogy()
-        plt.savefig("Figures/test_nls_" + plot_noise + ".png")
-
+    for missing_key in [key for key in list_keys if key not in cls.keys()]:
+        cls[missing_key] = np.zeros_like(cls[list(cls.keys())[0]], dtype=float)
     cov_matrix = np.full(
         (len(data.keys()), len(data.keys()), len(ls)), np.zeros_like(ls, dtype=float)
     )
     for i, XY in enumerate(data.keys()):
         for j, WZ in enumerate(data.keys()):
             if XY + WZ == "TTTT" or XY + WZ == "EEEE" or XY + WZ == "BBBB":
-                cov_matrix[i, j] = 2 * cls_noise[XY] ** 2 / nu
+                cov_matrix[i, j] = 2 * cls[XY] ** 2 / nu
             elif XY + WZ == "TTEE" or XY + WZ == "EETT":
-                cov_matrix[i, j] = 2 * cls_noise["TE"] ** 2 / nu
+                cov_matrix[i, j] = 2 * cls["TE"] ** 2 / nu
             elif (
                 XY + WZ == "TTTE"
                 or XY + WZ == "TETT"
                 or XY + WZ == "TEEE"
                 or XY + WZ == "EETE"
             ):
-                cov_matrix[i, j] = 2 * cls_noise[XY] * cls_noise[WZ] / nu
+                cov_matrix[i, j] = 2 * cls[XY] * cls[WZ] / nu
             elif XY + WZ == "TETE":
-                cov_matrix[i, j] = (
-                    cls_noise["TT"] * cls_noise["EE"] + cls_noise["TE"] ** 2
-                ) / nu
+                cov_matrix[i, j] = (cls["TT"] * cls["EE"] + cls["TE"] ** 2) / nu
+            elif XY + WZ == "TBTB":
+                cov_matrix[i, j] = (cls["TT"] * cls["BB"] + cls["TB"] ** 2) / nu
+            elif XY + WZ == "EBEB":
+                cov_matrix[i, j] = (cls["EE"] * cls["BB"] + cls["EB"] ** 2) / nu
+            elif XY + WZ == "TTBB" or XY + WZ == "BBTT":
+                cov_matrix[i, j] = 2 * cls["TB"] ** 2 / nu
+            elif XY + WZ == "BBTE" or XY + WZ == "TEBB":
+                cov_matrix[i, j] = 2 * cls["EB"] * cls["TB"] / nu
+            elif XY + WZ == "BBTB" or XY + WZ == "TBBB":
+                cov_matrix[i, j] = 2 * cls["BB"] * cls["TB"] / nu
+            elif XY + WZ == "BBEB" or XY + WZ == "EBBB":
+                cov_matrix[i, j] = 2 * cls["BB"] * cls["EB"] / nu
+            elif XY + WZ == "BBEE" or XY + WZ == "EEBB":
+                cov_matrix[i, j] = 2 * cls["EB"] ** 2 / nu
+            elif XY + WZ == "EBEE" or XY + WZ == "EEEB":
+                cov_matrix[i, j] = 2 * cls["EE"] * cls["EB"] / nu
+            elif XY + WZ == "TBEE" or XY + WZ == "EETB":
+                cov_matrix[i, j] = 2 * cls["TE"] * cls["EB"] / nu
+            elif XY + WZ == "TBTT" or XY + WZ == "TTTB":
+                cov_matrix[i, j] = 2 * cls["TT"] * cls["TB"] / nu
+            elif XY + WZ == "EBTT" or XY + WZ == "TTEB":
+                cov_matrix[i, j] = 2 * cls["TE"] * cls["TB"] / nu
+            elif XY + WZ == "TETB" or XY + WZ == "TBTE":
+                cov_matrix[i, j] = (cls["TT"] * cls["EB"] + cls["TE"] * cls["TB"]) / nu
+            elif XY + WZ == "TBEB" or XY + WZ == "EBTB":
+                cov_matrix[i, j] = (cls["TE"] * cls["BB"] + cls["EB"] * cls["TB"]) / nu
+            elif XY + WZ == "TEEB" or XY + WZ == "EBTE":
+                cov_matrix[i, j] = (cls["TE"] * cls["EB"] + cls["EE"] * cls["TB"]) / nu
             else:
-                cov_matrix[i, j] = np.zeros_like(cls_noise[XY], dtype=float)
-
+                cov_matrix[i, j] = np.zeros_like(cls[XY], dtype=float)
     cov_matrix = np.transpose(cov_matrix, (2, 0, 1)) / fsky
     return cov_matrix
+
+def get_cosmic_variance(data, ls):
+    cov_matrix = get_cov_matrix(data, ls)
+    error_array = np.sqrt(cov_matrix.diagonal(axis1=1, axis2=2)).T
+    print(error_array)
+    error_dict = {
+        key : error_array[i]
+        for i, key in enumerate(data.keys())
+    }
+    return error_dict
 
 
 def get_Cls_1dev(
@@ -114,31 +137,62 @@ def get_Cls_1dev(
         (len(param_keys), len(cls_keys), numb_l), np.zeros(numb_l, dtype=float)
     )
 
-    for i, param in enumerate(param_keys):
+    angle_keys = ["alpha", "beta"]
+    angle_params = {}
+    other_params = {}
 
-        cosmo_params_inf = cosmo_params.copy()
-        cosmo_params_inf[param] *= 1 - step
-        if cosmo_params_inf[param] == 0:
-            cosmo_params_inf[param] = -1e-6
-        cls_inf = mk_ini_spectra(cosmo_params_inf, spectra, LMAX, cut_2_l=cut_2_l)
+    for key, value in cosmo_params.items():
+        if key in angle_keys:
+            angle_params[key] = value
+        else:
+            other_params[key] = value
 
-        cosmo_params_sup = cosmo_params.copy()
-        cosmo_params_sup[param] *= 1 + step
-        if cosmo_params_sup[param] == 0:
-            cosmo_params_sup[param] = 1e-6
-        cls_sup = mk_ini_spectra(cosmo_params_sup, spectra, LMAX, cut_2_l=cut_2_l)
+    #    for i, param in enumerate(angle_params.keys()):
+    #        cls_1dev_angle = cls_1dev_alpha(mk_ini_spectra(
+    #            cosmo_params, spectra, LMAX, cut_2_l=cut_2_l, wanted_keys=cls_keys
+    #        ), angle_params[param])
+    #        for j, key in enumerate(cls_keys):
+    #            cls_1dev[i, j] = cls_1dev_angle[key]
 
-        for j, key in enumerate(cls_keys):
-            cls_1dev[i, j] = (cls_sup[key] - cls_inf[key]) / (
-                cosmo_params_sup[param] - cosmo_params_inf[param]
+    for i, param in enumerate(cosmo_params.keys()):
+        if param in angle_keys:
+            cls_1dev_angle = cls_1dev_alpha(
+                mk_ini_spectra(
+                    cosmo_params, spectra, LMAX, cut_2_l=cut_2_l, wanted_keys=cls_keys
+                ),
+                angle_params[param],
+            )
+            for j, key in enumerate(cls_keys):
+                cls_1dev[i, j] = cls_1dev_angle[key]
+        else:
+            cosmo_params_inf = cosmo_params.copy()
+            cosmo_params_inf[param] *= 1 - step
+            if cosmo_params_inf[param] == 0:
+                cosmo_params_inf[param] = -1e-6
+            cls_inf = mk_ini_spectra(
+                cosmo_params_inf, spectra, LMAX, cut_2_l=cut_2_l, wanted_keys=cls_keys
             )
 
+            cosmo_params_sup = cosmo_params.copy()
+            cosmo_params_sup[param] *= 1 + step
+            if cosmo_params_sup[param] == 0:
+                cosmo_params_sup[param] = 1e-6
+            cls_sup = mk_ini_spectra(
+                cosmo_params_sup, spectra, LMAX, cut_2_l=cut_2_l, wanted_keys=cls_keys
+            )
+
+            for j, key in enumerate(cls_keys):
+                cls_1dev[i, j] = (cls_sup[key] - cls_inf[key]) / (
+                    cosmo_params_sup[param] - cosmo_params_inf[param]
+                )
     cls_1dev = np.transpose(cls_1dev, (2, 0, 1))
     return cls_1dev
 
 
 def get_all_fisher_matrices(cls_1dev, covariance_matrix_inv):
-    fisher_matrices = np.zeros((len(cls_1dev), 6, 6), dtype=float)
+    fisher_matrices = np.zeros(
+        (len(cls_1dev), cls_1dev.shape[1], cls_1dev.shape[1]), dtype=float
+    )
     for i in range(len(cls_1dev)):
         fisher_matrices[i] = np.dot(
             cls_1dev[i], np.dot(covariance_matrix_inv[i], cls_1dev[i].T)
@@ -175,7 +229,11 @@ def get_fisher_matrix(
     """
 
     cls_1dev = get_Cls_1dev(
-        cosmo_params=cosmo_params, LMAX=lmax, cut_2_l=cut_2_l, step=step
+        cosmo_params=cosmo_params,
+        LMAX=lmax,
+        cut_2_l=cut_2_l,
+        step=step,
+        cls_keys=data.keys(),
     )
 
     covariance_matrix = get_cov_matrix(
@@ -197,48 +255,6 @@ def get_fisher_matrix(
         return fisher_matrix
 
 
-def get_nls(sensitivities: dict, theta_FWHM: float, lmax: int):
-    """Compute noise Nls from detector caracteristics
-
-    Args:
-        sensitivities (dict): dictionnary of s(muK.rad) for 'TT', 'EE', 'TE' ...
-        theta_FWHM (float): Effective beam FWHM(rad)
-        lmax (int): lmax ou quoi
-
-    Returns:
-        dict: dictionnary of Nls from l=2 to l=LMAX for each 'TT' ...
-    """
-
-    nls = {}
-    ls = np.arange(2, lmax)
-    for key in sensitivities.keys():
-        nls[key] = sensitivities[key] ** 2 * np.exp(
-            ls * (ls + 1) * theta_FWHM**2 / (8 * np.log(2))
-        )
-
-    return nls
-
-
-def get_total_noise(charact_detec: dict, lmax=1000):
-    nls_dict = {}
-    for band in charact_detec.keys():
-        theta_FWHM, s_T, s_pol = charact_detec[band]
-        s = {"TT": s_T, "EE": s_pol, "BB": s_pol, "TE": 0}
-        nls = get_nls(s, theta_FWHM, lmax=lmax)
-        nls_dict[band] = nls
-    total_nls1 = {}
-    for band in charact_detec.keys():
-        for key in nls.keys():
-            total_nls1[key] = np.zeros_like(nls_dict[band][key], dtype=float)
-    for band in charact_detec.keys():
-        for key in nls.keys():
-            total_nls1[key] += 1 / nls_dict[band][key]
-    total_nls = {}
-    for key in nls.keys():
-        total_nls[key] = 1 / total_nls1[key]
-    return total_nls
-
-
 def fisher_to_sigmas(fisher_matrix):
     """Compute sigmas of the params from the fisher matrix
 
@@ -250,3 +266,9 @@ def fisher_to_sigmas(fisher_matrix):
     """
     fisher_matrix_inv = np.linalg.inv(fisher_matrix)
     return np.sqrt(fisher_matrix_inv.diagonal())
+
+
+def bin_array(array, binning):
+    array = array[: len(array) // binning * binning]
+    x_reshaped = np.reshape(array, (-1, binning))
+    return np.mean(x_reshaped, axis=1)

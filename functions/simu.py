@@ -1,6 +1,10 @@
+import sys
+
+sys.path.append("/data/stage_merry/functions")
 import camb
 import numpy as np
 import healpy as hp
+from birefringence_functions import *
 
 
 def mk_ini_spectra(
@@ -15,6 +19,7 @@ def mk_ini_spectra(
     spectra="total",
     LMAX=1000,
     cut_2_l=False,
+    wanted_keys=["TT", "EE", "BB", "TE"],
 ) -> dict:
     """Creates CMB spectra from cosmo params
 
@@ -39,7 +44,9 @@ def mk_ini_spectra(
         "pivot_tensor",
         "parameterization",
     ]
+
     inflation_params = {}
+    angle_params = {"alpha": 0, "beta": 0}
     other_params = {}
     if type(input_pars) == camb.CAMBparams:
         pars = input_pars
@@ -47,6 +54,8 @@ def mk_ini_spectra(
         for key, value in input_pars.items():
             if key in inflation_keys:
                 inflation_params[key] = value
+            elif key in angle_params.keys():
+                angle_params[key] = value
             else:
                 other_params[key] = value
         pars = camb.CAMBparams()
@@ -62,24 +71,23 @@ def mk_ini_spectra(
     else:
         first_l = 0
 
-    dls_TT = powers[spectra][first_l:LMAX, 0]
-    dls_EE = powers[spectra][first_l:LMAX, 1]
-    dls_BB = powers[spectra][first_l:LMAX, 2]
-    dls_TE = powers[spectra][first_l:LMAX, 3]
-    ls = np.arange(dls_TT.shape[0])
+    ls = np.arange(first_l, LMAX)
     fac = ls * (ls + 1) / (2 * np.pi)
-    fac[0] = 1
-    cls_TT = dls_TT / fac
-    cls_EE = dls_EE / fac
-    cls_BB = dls_BB / fac
-    cls_TE = dls_TE / fac
+    fac = [1 if x == 0 else x for x in fac]
 
-    cls = {"TT": cls_TT, "EE": cls_EE, "BB": cls_BB, "TE": cls_TE}
+    dls = {}
+    cls = {}
+    for i, key in enumerate(["TT", "EE", "BB", "TE"]):
+        dls[key] = powers[spectra][first_l:LMAX, i]
+        cls[key] = dls[key] / fac
 
+    cls = biref_cross_spectra(cls, angle_params, wanted_keys=wanted_keys)
     return cls
 
 
-def mk_spectra(input_pars, spectra, LMAX, NSIDE):
+def mk_spectra(
+    input_pars, spectra, LMAX, NSIDE, wanted_keys=["TT", "EE", "BB", "TE", "EB", "TB"]
+):
     """_summary_
 
     Args:
@@ -93,7 +101,7 @@ def mk_spectra(input_pars, spectra, LMAX, NSIDE):
             cls of each type from l = 0 to l=LMAX from input_pars
     """
 
-    cls = mk_ini_spectra(input_pars, spectra, LMAX=LMAX)
+    cls = mk_ini_spectra(input_pars, spectra, LMAX=LMAX, wanted_keys=wanted_keys)
 
     maps = hp.synfast((cls["TT"], cls["TE"], cls["EE"], cls["BB"]), nside=NSIDE)
 
@@ -103,9 +111,8 @@ def mk_spectra(input_pars, spectra, LMAX, NSIDE):
 
     cls_all = hp.anafast((map_I, map_Q, map_U), lmax=LMAX)
 
-    cls_TT = cls_all[0]
-    cls_EE = cls_all[1]
-    cls_BB = cls_all[2]
-    cls_TE = cls_all[3]
+    cls = {}
+    for i, key in enumerate(wanted_keys):
+        cls[key] = cls_all[i]
 
-    return cls_TT, cls_EE, cls_BB, cls_TE
+    return cls
