@@ -1,5 +1,4 @@
 import sys
-
 sys.path.append("/data/stage_merry/functions")
 import numpy as np
 from simu import *

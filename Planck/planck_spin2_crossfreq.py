@@ -1,5 +1,5 @@
 import sys 
-sys.path.append('/data/stage_merry_2/functions')
+sys.path.append('/data/stage_merry/functions')
 import healpy as hp
 from pspy import *
 from matplotlib import pyplot as plt
@@ -11,9 +11,13 @@ from tqdm import tqdm
 from plot_functions import *
 from fisher_matrix import *
 from itertools import combinations_with_replacement, product
+import datetime
 
 def fac(ls):
     return ls * (ls + 1) / (2 * pi)
+
+date_float = datetime.datetime.now().strftime("%m%d_%H%M")
+print("run %s" % date_float)
 
 FSKY = "Likelihood"
 BAND_1 = "100"
@@ -23,24 +27,27 @@ BAND_2 = "100"
 filename = "Planck/Figures/Planck_{}x{}_full_bmcm.png" 
 filename = "Planck/Figures/Planck_{}x{}_full_bmcm.png" 
 
+plot_bool = False
+save_spectra_bool = True
+load_Planck_spectra_bool = False
 same_fig_bool = False
 err_plot_bool = False
 comp_plot_bool = False
-binned_mcm = True
-adapt_lmax = True
+binned_mcm = False
+adapt_lmax = False
 start_at_2_bool = False
 sum_cross_spec_bool = False
 
-LMAX= 1000
+LMAX= 2000
 
 BAND_LIST = ["100", "143", "217"]
 # BAND_LIST = ["100"]
 # BAND_LIST = ["217"]
 
-BAND_iter = [("100", "100"), ("100", "143"), ("100", "217")]
+# BAND_iter = [("143", "100"), ("217", "100"), ("217", "143")]
 # BAND_iter = [("100", "100"), ("100", "143"), ("100", "217"), ("143", "143"), ("143", "217"), ("217", "217")]
-# BAND_iter = product(BAND_LIST, repeat=2)    #Sans repeter xy et yx
-# BAND_iter = combinations_with_replacement(BAND_LIST, r=2)   #Tout
+# BAND_iter = combinations_with_replacement(BAND_LIST, r=2)    #Sans repeter xy et yx
+BAND_iter = product(BAND_LIST, repeat=2)      #Tout
 
 bin_size = 20
 # pspy_utils.create_binning_file(bin_size, 10000/bin_size, 10000, "binning.dat")
@@ -83,16 +90,17 @@ for BAND_1, BAND_2 in BAND_iter:
     print("Reading data")
     
     ### Trying to get Planck spectra and adapting LMAX if necessary
-    planck_key_bool = {}
-    data_Planck = {}
-    for key in spec_keys_to_plot:
-        try:
-            data_Planck[key] = np.loadtxt("data/spectra/planck/planck_spectrum_%s_%sx%s.dat" % (key, BAND_1, BAND_2)).T
-            if adapt_lmax:
-                lmax_iter = max(int(max(data_Planck[key][0]))+100, lmax_iter)
-        except:
-            pass
-    
+    if load_Planck_spectra_bool:
+        planck_key_bool = {}
+        data_Planck = {}
+        for key in spec_keys_to_plot:
+            try:
+                data_Planck[key] = np.loadtxt("data/spectra/planck/planck_spectrum_%s_%sx%s.dat" % (key, BAND_1, BAND_2)).T
+                if adapt_lmax:
+                    lmax_iter = max(int(max(data_Planck[key][0]))+100, lmax_iter)
+            except:
+                pass
+
     ### Reading CMB maps
     map_1 = so_map.read_map(
         "data/maps/HFI_SkyMap_%s_2048_R3.01_halfmission-1.fits" % BAND_1, fields_healpix=(0, 1, 2)
@@ -216,56 +224,60 @@ for BAND_1, BAND_2 in BAND_iter:
     if err_plot_bool:
         error_dict = get_cosmic_variance(cls_dict_bin, ls=lb)
 
-    print("Plotting")
-    ### Plotting over wanted keys
-    row, col = 0, 0
-    for i, key in enumerate(spec_keys_to_plot):
-        row = i // cols
-        col = i % cols
-        axs[row, col].set_title(key)
+    ### Saving spectra for later
+    if save_spectra_bool:
+        so_spectra.write_ps("data/spectra/maison/Dls_%sx%s_%s.dat" % (BAND_1, BAND_2, date_float), lb, cls_dict_bin, 'Dl', spectra=cls_dict_bin.keys())
+    
+    if plot_bool:
+        print("Plotting")
+        ### Plotting over wanted keys
+        row, col = 0, 0
+        for i, key in enumerate(spec_keys_to_plot):
+            row = i // cols
+            col = i % cols
+            axs[row, col].set_title(key)
 
-        if not comp_plot_bool:
-            axs[row, col].plot(lb, cls_dict_bin[key], label="%sx%s" % (BAND_1, BAND_2), color=color_band[BAND_1])
-            if key in ["TT", "EE", "BB"]:
-                axs[row, col].semilogy()
+            if not comp_plot_bool:
+                axs[row, col].plot(lb, cls_dict_bin[key], label="%sx%s" % (BAND_1, BAND_2), color=color_band[BAND_1])
+                if key in ["TT", "EE", "BB"]:
+                    axs[row, col].semilogy()
 
-            if key in data_Planck.keys():
-                axs[row, col].errorbar(
-                    data_Planck[key][0],
-                    data_Planck[key][1] * fac(data_Planck[key][0]),
-                    data_Planck[key][2] * fac(data_Planck[key][0]),
-                    linestyle='None',
-                    marker=".",
-                    color="black",
-                    alpha=0.8,
-                    label="Planck release",
+                if key in data_Planck.keys():
+                    axs[row, col].errorbar(
+                        data_Planck[key][0],
+                        data_Planck[key][1] * fac(data_Planck[key][0]),
+                        data_Planck[key][2] * fac(data_Planck[key][0]),
+                        linestyle='None',
+                        marker=".",
+                        color="black",
+                        alpha=0.8,
+                        label="Planck release",
+                    )
+            if comp_plot_bool:
+                try:
+                    comp_indices = [i for i, value in enumerate(lb) if value in set(data_Planck[key][0])]
+                    cls_comp = [cls_dict_bin[key][i] for i in comp_indices]
+                    axs[row, col].plot(data_Planck[key][0],
+                                        (cls_comp - (data_Planck[key][1] * fac(data_Planck[key][0]))) / (data_Planck[key][2] * fac(data_Planck[key][0])),
+                                        label="%sx%s" % (BAND_1, BAND_2))  #, color=color_band[BAND_1]
+                except:
+                    pass
+
+            if err_plot_bool:
+                axs[row, col].fill_between(
+                    lb,
+                    cls_dict_bin[key] - error_dict[key] / np.sqrt(bin_size),
+                    cls_dict_bin[key] + error_dict[key] / np.sqrt(bin_size),
+                    alpha=0.3,
+                    color="grey",
+                    label="Effective noise",
+                    zorder=-10,
                 )
-        if comp_plot_bool:
-            try:
-                comp_indices = [i for i, value in enumerate(lb) if value in set(data_Planck[key][0])]
-                cls_comp = [cls_dict_bin[key][i] for i in comp_indices]
-                
-                axs[row, col].plot(data_Planck[key][0],
-                                    (cls_comp - (data_Planck[key][1] * fac(data_Planck[key][0]))) / (data_Planck[key][2] * fac(data_Planck[key][0])) ,
-                                    label="%sx%s" % (BAND_1, BAND_2))  #, color=color_band[BAND_1]
-            except:
-                pass
-
-        if err_plot_bool:
-            axs[row, col].fill_between(
-                lb,
-                cls_dict_bin[key] - error_dict[key] / np.sqrt(bin_size),
-                cls_dict_bin[key] + error_dict[key] / np.sqrt(bin_size),
-                alpha=0.3,
-                color="grey",
-                label="Effective noise",
-                zorder=-10,
-            )
-        axs[row, col].legend()
-    if not same_fig_bool:
-        # plt.grid()
-        plt.savefig(filename)
-        plt.clf()
+            axs[row, col].legend()
+        if not same_fig_bool:
+            # plt.grid()
+            plt.savefig(filename)
+            plt.clf()
 
 if same_fig_bool:
     # plt.grid()
