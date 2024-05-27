@@ -36,9 +36,8 @@ comp_plot_bool = False
 binned_mcm = False
 adapt_lmax = False
 start_at_2_bool = False
-sum_cross_spec_bool = False
 
-LMAX= 2000
+LMAX= 3000
 
 BAND_LIST = ["100", "143", "217"]
 # BAND_LIST = ["100"]
@@ -48,6 +47,7 @@ BAND_LIST = ["100", "143", "217"]
 # BAND_iter = [("100", "100"), ("100", "143"), ("100", "217"), ("143", "143"), ("143", "217"), ("217", "217")]
 # BAND_iter = combinations_with_replacement(BAND_LIST, r=2)    #Sans repeter xy et yx
 BAND_iter = product(BAND_LIST, repeat=2)      #Tout
+# BAND_iter = [("143", "100"), ("100", "143")]
 
 bin_size = 20
 # pspy_utils.create_binning_file(bin_size, 10000/bin_size, 10000, "binning.dat")
@@ -135,83 +135,49 @@ for BAND_1, BAND_2 in BAND_iter:
     almsList_1 = sph_tools.get_alms(map_1, (mask_T_1, mask_pol_1), niter=0, lmax=lmax_iter)
     almsList_2 = sph_tools.get_alms(map_2, (mask_T_2, mask_pol_2), niter=0, lmax=lmax_iter)
     ls_12, cls_12 = so_spectra.get_spectra(almsList_1, almsList_2, spectra=spec_keys_pspy)
-    
-    if sum_cross_spec_bool:
-        cls_12['TE'] += cls_12['ET']
-        cls_12['TE'] /= 2
-        cls_12['ET'] += cls_12['TE']
-        cls_12['ET'] /= 2
-        cls_12['EB'] += cls_12['BE']
-        cls_12['EB'] /= 2
-        cls_12['BE'] += cls_12['EB']
-        cls_12['BE'] /= 2
-        cls_12['TB'] += cls_12['BT']
-        cls_12['TB'] /= 2
-        cls_12['BT'] += cls_12['TB']
-        cls_12['BT'] /= 2
 
     ### Beam correction
-    if BAND_1 == BAND_2:
-        data_beam_T = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_2)).T
-        ls_beam_T, bls_T = data_beam_T[0, :len(ls_12)], data_beam_T[1, :len(ls_12)]
+    # if BAND_1 == BAND_2:
+    #     data_beam_T = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_2)).T
+    #     ls_beam_T, bls_T_1 = data_beam_T[0, :lmax_iter+2], data_beam_T[1, :lmax_iter+2]
+    #     bls_T_2 = bls_T_1
+# 
+    #     data_beam_pol = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_2)).T
+    #     ls_beam_pol, bls_pol_1 = data_beam_pol[0, :lmax_iter+2], data_beam_pol[1, :lmax_iter+2]
+    #     bls_pol_2 = bls_pol_1
 
-        data_beam_pol = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_2)).T
-        ls_beam_pol, bls_pol = data_beam_pol[0, :len(ls_12)], data_beam_pol[1, :len(ls_12)]
+    #else:
+    data_beam_T_1 = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm1x%shm1.dat" % (BAND_1, BAND_1)).T
+    bls_T_1 = data_beam_T_1[1, :lmax_iter+2]
 
-        Bls_dict = {'TT' : bls_T**2,
-                    'EE' : bls_pol**2,
-                    'BB' : bls_pol**2,
-                    'TE' : bls_pol*bls_T,
-                    'ET' : bls_pol*bls_T,
-                    'EB' : bls_pol**2,
-                    'BE' : bls_pol**2,
-                    'TB' : bls_pol*bls_T,
-                    'BT' : bls_pol*bls_T}
-    else:
-        data_beam_T_1 = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_1)).T
-        bls_T_1 = data_beam_T_1[1, :len(ls_12)]
+    data_beam_pol_1 = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm1x%shm1.dat" % (BAND_1, BAND_1)).T
+    bls_pol_1 = data_beam_pol_1[1, :lmax_iter+2]
+    
+    data_beam_T_2 = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm2x%shm2.dat" % (BAND_2, BAND_2)).T
+    bls_T_2 = data_beam_T_2[1, :lmax_iter+2]
 
-        data_beam_pol_1 = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm1x%shm2.dat" % (BAND_1, BAND_1)).T
-        bls_pol_1 = data_beam_pol_1[1, :len(ls_12)]
-        
-        data_beam_T_2 = np.loadtxt("data/beam_legacy/bl_T_legacy_%shm1x%shm2.dat" % (BAND_2, BAND_2)).T
-        bls_T_2 = data_beam_T_2[1, :len(ls_12)]
-
-        data_beam_pol_2 = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm1x%shm2.dat" % (BAND_2, BAND_2)).T
-        bls_pol_2 = data_beam_pol_2[1, :len(ls_12)]
-
-        Bls_dict = {'TT' : bls_T_1 * bls_T_2,
-                    'EE' : bls_pol_1 * bls_pol_2,
-                    'BB' : bls_pol_1 * bls_pol_2,
-                    'TE' : bls_T_1 * bls_pol_2,
-                    'ET' : bls_pol_1 * bls_T_2,
-                    'EB' : bls_pol_1 * bls_pol_2,
-                    'BE' : bls_pol_1 * bls_pol_2,
-                    'TB' : bls_T_1 * bls_pol_2,
-                    'BT' : bls_pol_1 * bls_T_2}
-
+    data_beam_pol_2 = np.loadtxt("data/beam_legacy/bl_pol_legacy_%shm2x%shm2.dat" % (BAND_2, BAND_2)).T
+    bls_pol_2 = data_beam_pol_2[1, :lmax_iter+2]
+    
     ### Mode coupling matrix
     mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0and2((mask_T_1, mask_pol_1), binning_file, lmax=lmax_iter, niter=0, type='Dl',
-                                                win2=(mask_T_2, mask_pol_2), binned_mcm=binned_mcm)
+                                                win2=(mask_T_2, mask_pol_2), binned_mcm=binned_mcm, bl1=(bls_T_1, bls_pol_1),
+                                                bl2=(bls_T_2, bls_pol_2))
 
     ### Pixwin correction
     pixwin_1 = map_1.get_pixwin()[:len(ls_12)]
     pixwin_2 = map_2.get_pixwin()[:len(ls_12)]
 
     ### Getting dict with the right keys for pspy
-    cls_dict_beam = {
-        spec_keys[i]: cls_12[spec_keys[i]]
-        for i in range(len(spec_keys))
-    }    
-    
-    for i, key in enumerate(spec_keys_pspy):
-        key_ini = spec_keys[spec_indices[i]]
-        cls_dict_beam[key] = cls_dict_beam[key_ini] / pixwin_1 / pixwin_2 / Bls_dict[key]
+    cls_dict_pspy = {
+        key: cls_12[key] / pixwin_1 / pixwin_2
+        for key in cls_12.keys()
+    }
 
     ### Binning and mcm
     lb, cls_dict_bin = so_spectra.bin_spectra(
         ls_12,
-        cls_dict_beam,
+        cls_dict_pspy,
         binning_file,
         lmax=lmax_iter,
         type="Dl",
@@ -219,7 +185,7 @@ for BAND_1, BAND_2 in BAND_iter:
         spectra=spec_keys_pspy,
         binned_mcm=binned_mcm
     )
-    
+
     ### Computing error
     if err_plot_bool:
         error_dict = get_cosmic_variance(cls_dict_bin, ls=lb)
@@ -227,6 +193,8 @@ for BAND_1, BAND_2 in BAND_iter:
     ### Saving spectra for later
     if save_spectra_bool:
         so_spectra.write_ps("data/spectra/maison/Dls_%sx%s_%s.dat" % (BAND_1, BAND_2, date_float), lb, cls_dict_bin, 'Dl', spectra=cls_dict_bin.keys())
+    
+    # print(cls_dict_bin.keys())
     
     if plot_bool:
         print("Plotting")
