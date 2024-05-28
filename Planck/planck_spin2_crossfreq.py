@@ -36,6 +36,9 @@ comp_plot_bool = False
 binned_mcm = False
 adapt_lmax = False
 start_at_2_bool = False
+get_fskys = True
+
+niter = 3
 
 LMAX= 3000
 
@@ -126,14 +129,20 @@ for BAND_1, BAND_2 in BAND_iter:
     mask_T_2 = so_map.read_map(
         "data/maps/COM_Mask_Likelihood-temperature-%s-hm2_2048_R3.00.fits" % BAND_2
     )
+    if get_fskys:
+        print(so_window.get_survey_solid_angle(mask_T_1) / (4 * pi))
+        print(so_window.get_survey_solid_angle(mask_T_2) / (4 * pi))
+        print(so_window.get_survey_solid_angle(mask_pol_1) / (4 * pi))
+        print(so_window.get_survey_solid_angle(mask_pol_1) / (4 * pi))
+        continue
     
     ### Substract monopole and dipole
     map_1.subtract_mono_dipole(mask=(mask_T_1, mask_pol_1))
     map_2.subtract_mono_dipole(mask=(mask_T_2, mask_pol_2))
     
     ### Compute spectra from masked maps
-    almsList_1 = sph_tools.get_alms(map_1, (mask_T_1, mask_pol_1), niter=0, lmax=lmax_iter)
-    almsList_2 = sph_tools.get_alms(map_2, (mask_T_2, mask_pol_2), niter=0, lmax=lmax_iter)
+    almsList_1 = sph_tools.get_alms(map_1, (mask_T_1, mask_pol_1), niter=niter, lmax=lmax_iter)
+    almsList_2 = sph_tools.get_alms(map_2, (mask_T_2, mask_pol_2), niter=niter, lmax=lmax_iter)
     ls_12, cls_12 = so_spectra.get_spectra(almsList_1, almsList_2, spectra=spec_keys_pspy)
 
     ### Beam correction
@@ -160,7 +169,7 @@ for BAND_1, BAND_2 in BAND_iter:
     bls_pol_2 = data_beam_pol_2[1, :lmax_iter+2]
     
     ### Mode coupling matrix
-    mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0and2((mask_T_1, mask_pol_1), binning_file, lmax=lmax_iter, niter=0, type='Dl',
+    mbb_inv, Bbl = so_mcm.mcm_and_bbl_spin0and2((mask_T_1, mask_pol_1), binning_file, lmax=lmax_iter, niter=niter, type='Dl',
                                                 win2=(mask_T_2, mask_pol_2), binned_mcm=binned_mcm, bl1=(bls_T_1, bls_pol_1),
                                                 bl2=(bls_T_2, bls_pol_2))
 
