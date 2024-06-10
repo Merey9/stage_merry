@@ -11,6 +11,7 @@ from pysm3 import units as u
 from tqdm import tqdm
 from plot_functions import *
 from fisher_matrix import *
+from likelihood_functions import *
 from itertools import combinations_with_replacement, product
 
 
@@ -20,15 +21,14 @@ def fac(ls):
 
 spec_keys_pspy = ["TT", "TE", "TB", "ET", "BT", "EE", "EB", "BE", "BB"]
 
-plot_bool = False
+plot_bool = True
 comp_bool = False
-plot_err_bool = False
-plot_err_comp = True
-try_new_error = True
+plot_err_bool = plot_bool
+plot_err_comp = False
 
 date_float = "0530_0810"
 
-cross_spec_key = "TE"
+cross_spec_key = "BB"
 
 filename = "Planck/Figures/Planck_all_band_%s_%s_new_fsky5" % (
     cross_spec_key,
@@ -82,7 +82,7 @@ for BAND in ["100", "143", "217"]:
                 "data/maps/COM_Mask_Likelihood-%s-%s-hm%s_2048_R3.00.fits"
                 % (pol_or_temp, BAND, hm)
             )
-            value = np.sum(mask_pol_1.data**2) / (2048**2 * 12)
+            value = np.sum(mask_pol_1.data) / (2048**2 * 12)
             fskys_dict[BAND][pol_or_temp]["hm" + hm] = value
             # print("%s %s hm%s : %s" % (BAND, pol_or_temp, hm, value))
 
@@ -107,45 +107,26 @@ axs = np.array(axs).reshape(rows, cols)
 fig.subplots_adjust(hspace=0.2, wspace=0.2)  # Adjust the spacing between subplots
 plt.tight_layout()
 
+# Create a dict with more conveniant keys:
+# ex : T1431E2172
+data = {}
+for BAND_1, BAND_2 in product(["100", "143", "217"], repeat=2):
+    for hm_1, hm_2 in hms_list:
+        lb, current_spectra = so_spectra.read_ps(
+            "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
+            % (BAND_1, hm_1, BAND_2, hm_2, date_float),
+            spectra=spec_keys_pspy,
+        )
+        for XY in spec_keys_pspy:
+            X, Y = XY[0], XY[1]
+            data[X + BAND_1 + hm_1 + Y + BAND_2 + hm_2] = current_spectra[XY]
+
+
 for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
     row = i // cols
     col = i % cols
     axs[row, col].set_title("%sx%s" % (BAND_1, BAND_2))
-    Dls_11 = {}
-    Dls_22 = {}
-    Dls_12 = {}
-    for hm_B1, hm_B2 in hms_list:
-        lb, Dls_12["hm%shm%s" % (hm_B1, hm_B2)] = so_spectra.read_ps(
-            "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
-            % (BAND_1, hm_B1, BAND_2, hm_B2, date_float),
-            spectra=spec_keys_pspy,
-        )
-        lb, Dls_11["hm%shm%s" % (hm_B1, hm_B2)] = so_spectra.read_ps(
-            "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
-            % (BAND_1, hm_B1, BAND_1, hm_B2, date_float),
-            spectra=spec_keys_pspy,
-        )
-        lb, Dls_22["hm%shm%s" % (hm_B1, hm_B2)] = so_spectra.read_ps(
-            "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
-            % (BAND_2, hm_B1, BAND_2, hm_B2, date_float),
-            spectra=spec_keys_pspy,
-        )
 
-    # Create a dict with more conveniant keys:
-    # ex : T1431E2172
-    data = {}
-    for hm_1, hm_2 in hms_list:
-        for XY in spec_keys_pspy:
-            X, Y = XY[0], XY[1]
-            data[X + BAND_1 + hm_1 + Y + BAND_2 + hm_2] = Dls_12[
-                "hm%shm%s" % (hm_1, hm_2)
-            ][XY]
-            data[X + BAND_1 + hm_1 + Y + BAND_1 + hm_2] = Dls_11[
-                "hm%shm%s" % (hm_1, hm_2)
-            ][XY]
-            data[X + BAND_2 + hm_1 + Y + BAND_2 + hm_2] = Dls_22[
-                "hm%shm%s" % (hm_1, hm_2)
-            ][XY]
     try:
         data_Planck = np.loadtxt(
             "data/spectra/planck/planck_spectrum_%s_%sx%s.dat"
@@ -157,15 +138,24 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
     # Compute indices for the binning file
     bin_indices = [i for i, value in enumerate(l_bin) if value in set(lb)]
 
-    Dls_sum = {
-        cross_spec_key: np.zeros_like(Dls_12["hm1hm2"][cross_spec_key], dtype=float)
-    }
+    Dls_sum = {cross_spec_key: np.zeros_like(data["T1001T1001"], dtype=float)}
 
-    for key in [cross_spec_key, cross_spec_key[::-1]]:
-        Dls_sum[cross_spec_key] += Dls_12["hm1hm2"][key]
-        Dls_sum[cross_spec_key] += Dls_12["hm2hm1"][key]
+    first_keys = []
+    second_keys = []
+    for first_band, second_band in [(BAND_1, BAND_2), (BAND_2, BAND_1)]:
+        for s1, s2 in [
+            (cross_spec_key[0], cross_spec_key[1]),
+            (cross_spec_key[1], cross_spec_key[0]),
+        ]:
+            first_keys.append(s1 + first_band + "1")
+            second_keys.append(s2 + second_band + "2")
 
-    Dls_sum[cross_spec_key] /= 4
+    spec_list = []
+    for first_key, second_key in zip(first_keys, second_keys):
+        spec_list.append(first_key)
+        spec_list.append(second_key)
+        Dls_sum[cross_spec_key] += data[first_key + second_key] / len(first_keys)
+    variance = cross_spectra_variance(lb, data, spec_list=spec_list)
 
     if plot_err_bool or plot_err_comp:
         spec_1 = "temperature"
@@ -182,21 +172,9 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
             for hm in fskys_dict[band][measurement]
         ]
         fsky_1 = np.prod(fskys) ** (1 / len(fskys))
-        error_dict = get_crossfreq_variance(
-            Dls_11, Dls_12, Dls_22, lb, bin_size, fsky_1=fsky_1, fsky_2=None
-        )
-        spec_list = []
-        if try_new_error:
-            spec_list.append(cross_spec_key[0] + BAND_1 + "1")
-            spec_list.append(cross_spec_key[1] + BAND_2 + "2")
-            spec_list.append(cross_spec_key[0] + BAND_2 + "1")
-            spec_list.append(cross_spec_key[1] + BAND_1 + "2")
-            spec_list.append(cross_spec_key[1] + BAND_1 + "1")
-            spec_list.append(cross_spec_key[0] + BAND_2 + "2")
-            spec_list.append(cross_spec_key[1] + BAND_2 + "1")
-            spec_list.append(cross_spec_key[0] + BAND_1 + "2")
-            variance = cross_spectra_variance(lb, data, spec_list=spec_list)
-            error_dict[cross_spec_key] = variance
+        fsky_1 = min(fskys)
+        error_dict = {}
+        error_dict[cross_spec_key] = np.sqrt(variance / bin_size / fsky_1)
 
     if comp_bool:
         try:
@@ -225,7 +203,7 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
         for key in [cross_spec_key, cross_spec_key[::-1]]:
             axs[row, col].plot(
                 lb,
-                Dls_12["hm1hm2"][key],
+                Dls_sum[cross_spec_key],
                 alpha=0.5,
                 label="%s_%sx%s" % (key, BAND_1, BAND_2),
                 linewidth=1,
@@ -259,7 +237,7 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
     if plot_err_comp:
         axs[row, col].plot(
             lb,
-            error_dict[key],
+            error_dict[cross_spec_key],
             alpha=1,
             color="black",
             label="Effective noise",
@@ -278,5 +256,4 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
 
     axs[row, col].set_xlim(spec_xlims[cross_spec_key])
     axs[row, col].legend()
-print(data)
 plt.savefig(filename, dpi=300)

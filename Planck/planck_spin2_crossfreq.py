@@ -21,7 +21,7 @@ def fac(ls):
 
 date_float = datetime.datetime.now().strftime("%m%d_%H%M")
 print("run %s" % date_float)
-# date_float = '0530_0810'
+# date_float = "0530_0810"
 
 FSKY = "Likelihood"
 BAND_1 = "100"
@@ -50,16 +50,17 @@ BAND_LIST = ["100", "143", "217"]
 # BAND_LIST = ["100"]
 # BAND_LIST = ["217"]
 
-BAND_iter = [("100", "100"), ("143", "143"), ("217", "217")]
+# BAND_iter = [("143", "100"), ("217", "100"), ("217", "143")]
 # BAND_iter = [("100", "100"), ("100", "143"), ("100", "217"), ("143", "143"), ("143", "217"), ("217", "217")]
 # BAND_iter = combinations_with_replacement(BAND_LIST, r=2)    #Sans repeter xy et yx
-# BAND_iter = product(BAND_LIST, repeat=2)  # Tout
+BAND_iter = product(BAND_LIST, repeat=2)  # Tout
 # BAND_iter = [("143", "100"), ("100", "143")]
 
 bin_size = 20
-# pspy_utils.create_binning_file(bin_size, 10000/bin_size, 10000, "binning.dat")
-binning_file = "data/spectra/planck/binning/bin_planck.dat"
-# binning_file = "binning.dat"
+new_binning_file = "data/spectra/maison/binning/binning%s.dat" % date_float
+pspy_utils.create_binning_file(bin_size, 10000 / bin_size, 10000, new_binning_file)
+# binning_file = "data/spectra/planck/binning/bin_planck.dat"
+binning_file = new_binning_file
 
 fskys = [0.20, 0.40, 0.60, 0.70, 0.80, 0.90, 0.97, 0.99]
 spec_keys = ["TT", "EE", "BB", "TE", "EB", "TB"]
@@ -95,12 +96,12 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
 
     # print(BAND_1, BAND_2)
     # print("Reading data")
-    # for hm_B1, hm_B2 in [('1', '1'), ('1', '2'), ('2', '1'), ('2', '2')]:
-    for hm_B1, hm_B2 in [('2', '1')]:
+    for hm_B1, hm_B2 in [("1", "1"), ("1", "2"), ("2", "1"), ("2", "2")]:
+        # for hm_B1, hm_B2 in [('2', '1')]:
         # print(hm_B1 + hm_B2)
         # if BAND_1 == BAND_2 and (hm_B1, hm_B2) == ('2', '1'):
         #  continue
-    ### Trying to get Planck spectra and adapting LMAX if necessary
+        ### Trying to get Planck spectra and adapting LMAX if necessary
         if load_Planck_spectra_bool:
             planck_key_bool = {}
             data_Planck = {}
@@ -131,16 +132,20 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
         # print("Masks")
         ### Reading masks maps
         mask_pol_1 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits" % (BAND_1, hm_B1)
+            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
+            % (BAND_1, hm_B1)
         )
         mask_pol_2 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits" % (BAND_2, hm_B2)
+            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
+            % (BAND_2, hm_B2)
         )
         mask_T_1 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits" % (BAND_1, hm_B1)
+            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
+            % (BAND_1, hm_B1)
         )
         mask_T_2 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits" % (BAND_2, hm_B2)
+            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
+            % (BAND_2, hm_B2)
         )
 
         if get_fskys:
@@ -164,33 +169,37 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
         ls_12, cls_12 = so_spectra.get_spectra(
             almsList_1, almsList_2, spectra=spec_keys_pspy
         )
- #        ls_11, cls_11 = so_spectra.get_spectra(
- #            almsList_1, almsList_1, spectra=spec_keys_pspy
- #        )
- #        ls_22, cls_22 = so_spectra.get_spectra(
- #            almsList_2, almsList_2, spectra=spec_keys_pspy
- #        )
- #        ls_21, cls_21 = so_spectra.get_spectra(
- #            almsList_1, almsList_2, spectra=spec_keys_pspy
-#         )
+        #        ls_11, cls_11 = so_spectra.get_spectra(
+        #            almsList_1, almsList_1, spectra=spec_keys_pspy
+        #        )
+        #        ls_22, cls_22 = so_spectra.get_spectra(
+        #            almsList_2, almsList_2, spectra=spec_keys_pspy
+        #        )
+        #        ls_21, cls_21 = so_spectra.get_spectra(
+        #            almsList_1, almsList_2, spectra=spec_keys_pspy
+        #         )
 
         data_beam_T_1 = np.loadtxt(
-            "data/beam_legacy/bl_T_legacy_%shm%sx%shm%s.dat" % (BAND_1, hm_B1, BAND_1, hm_B1)
+            "data/beam_legacy/bl_T_legacy_%shm%sx%shm%s.dat"
+            % (BAND_1, hm_B1, BAND_1, hm_B1)
         ).T
         bls_T_1 = data_beam_T_1[1, : lmax_iter + 2]
 
         data_beam_pol_1 = np.loadtxt(
-            "data/beam_legacy/bl_pol_legacy_%shm%sx%shm%s.dat" % (BAND_1, hm_B1, BAND_1, hm_B1)
+            "data/beam_legacy/bl_pol_legacy_%shm%sx%shm%s.dat"
+            % (BAND_1, hm_B1, BAND_1, hm_B1)
         ).T
         bls_pol_1 = data_beam_pol_1[1, : lmax_iter + 2]
 
         data_beam_T_2 = np.loadtxt(
-            "data/beam_legacy/bl_T_legacy_%shm%sx%shm%s.dat" % (BAND_2, hm_B2, BAND_2, hm_B2)
+            "data/beam_legacy/bl_T_legacy_%shm%sx%shm%s.dat"
+            % (BAND_2, hm_B2, BAND_2, hm_B2)
         ).T
         bls_T_2 = data_beam_T_2[1, : lmax_iter + 2]
 
         data_beam_pol_2 = np.loadtxt(
-            "data/beam_legacy/bl_pol_legacy_%shm%sx%shm%s.dat" % (BAND_2, hm_B2, BAND_2, hm_B2)
+            "data/beam_legacy/bl_pol_legacy_%shm%sx%shm%s.dat"
+            % (BAND_2, hm_B2, BAND_2, hm_B2)
         ).T
         bls_pol_2 = data_beam_pol_2[1, : lmax_iter + 2]
 
@@ -212,12 +221,14 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
         pixwin_2 = map_2.get_pixwin()[: len(ls_12)]
 
         ### Getting dict with the right keys for pspy
-        cls_dict_pspy = {key: cls_12[key] / pixwin_1 / pixwin_2 for key in cls_12.keys()}
+        cls_dict_pspy = {
+            key: cls_12[key] / pixwin_1 / pixwin_2 for key in cls_12.keys()
+        }
 
         # cls_dict_pspy_1 = {key: cls_11[key] / pixwin_1 / pixwin_1 for key in cls_11.keys()}
 
         # cls_dict_pspy_2 = {key: cls_22[key] / pixwin_2 / pixwin_2 for key in cls_22.keys()}
-#
+        #
         ### Binning and mcm
         lb, cls_dict_bin = so_spectra.bin_spectra(
             ls_12,
@@ -230,27 +241,27 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
             binned_mcm=binned_mcm,
         )
 
-    #    lb_1, cls_dict_bin_1 = so_spectra.bin_spectra(
-    #        ls_11,
-    #        cls_dict_pspy_1,
-    #        binning_file,
-    #        lmax=lmax_iter,
-    #        type="Dl",
-    #        mbb_inv=mbb_inv,
-    #        spectra=spec_keys_pspy,
-    #        binned_mcm=binned_mcm,
-    #    )
-    #
-    #    lb_2, cls_dict_bin_2 = so_spectra.bin_spectra(
-    #        ls_22,
-    #        cls_dict_pspy_2,
-    #        binning_file,
-    #        lmax=lmax_iter,
-    #        type="Dl",
-    #        mbb_inv=mbb_inv,
-    #        spectra=spec_keys_pspy,
-    #        binned_mcm=binned_mcm,
-    #    )
+        #    lb_1, cls_dict_bin_1 = so_spectra.bin_spectra(
+        #        ls_11,
+        #        cls_dict_pspy_1,
+        #        binning_file,
+        #        lmax=lmax_iter,
+        #        type="Dl",
+        #        mbb_inv=mbb_inv,
+        #        spectra=spec_keys_pspy,
+        #        binned_mcm=binned_mcm,
+        #    )
+        #
+        #    lb_2, cls_dict_bin_2 = so_spectra.bin_spectra(
+        #        ls_22,
+        #        cls_dict_pspy_2,
+        #        binning_file,
+        #        lmax=lmax_iter,
+        #        type="Dl",
+        #        mbb_inv=mbb_inv,
+        #        spectra=spec_keys_pspy,
+        #        binned_mcm=binned_mcm,
+        #    )
 
         # assert len(ls_12) == len(ls_11)
 
@@ -261,7 +272,8 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
         ### Saving spectra for later
         if save_spectra_bool:
             so_spectra.write_ps(
-                "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat" % (BAND_1, hm_B1, BAND_2, hm_B2, date_float),
+                "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
+                % (BAND_1, hm_B1, BAND_2, hm_B2, date_float),
                 lb,
                 cls_dict_bin,
                 "Dl",
