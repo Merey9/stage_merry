@@ -96,3 +96,12 @@ def get_nls_from_dat(
         return get_effective_noise(nls)["Effective"]["All"]
     else:
         return nls
+
+
+def get_effective_nmodes(win_1, win_2, l_bin, bin_size):
+    fsky_1 = np.sum(win_1)
+    w2_1 = np.sum(win_1.data**2)
+    w4_1 = np.sum(win_1.data**4)
+    w2_2 = np.sum(win_2.data**2)
+    w4_2 = np.sum(win_2.data**4)
+    return (2 * l_bin + 1) * bin_size * w2_1 * w2_2 / np.sqrt(w4_1 * w4_2)

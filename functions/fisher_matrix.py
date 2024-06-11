@@ -1,17 +1,27 @@
 import sys
+
 sys.path.append("/data/stage_merry/functions")
 import numpy as np
 from simu import *
 from matplotlib import pyplot as plt
 import copy
 from birefringence_functions import *
-
+from likelihood_functions import *
+from math import pi
+import itertools
 
 list_keys = ["TT", "EE", "BB", "TE", "TB", "EB"]
 
 
 def get_cov_matrix(
-    data: dict, nls=None, cut_2_l=False, data_cls_bool=True, plot_noise=None, fsky=1, ls=None
+    data: dict,
+    nls=None,
+    cut_2_l=False,
+    data_cls_bool=True,
+    plot_noise=None,
+    fsky=1,
+    ls=None,
+    Dls=False,
 ) -> np.ndarray:
     """Compute the covariance matrix from Cls and Nls
     Args:
@@ -19,7 +29,7 @@ def get_cov_matrix(
         nls (_type_, optional): Noise spectrum. Defaults to None.
         cut_2_l (bool, optional): _description_. Defaults to False.
         data_cls_bool (bool, optional): If False, mean over data rows
-        If True, has to be sigle row Cls. Defaults to False.
+        If True, has to be sigle row Cls. Defaults to True.
         plot_noise (str, optional): Plot Cls and Nls of plot_noise='TT', 'TE' ... Defaults to None.
 
     Returns:
@@ -89,14 +99,96 @@ def get_cov_matrix(
     cov_matrix = np.transpose(cov_matrix, (2, 0, 1)) / fsky
     return cov_matrix
 
-def get_cosmic_variance(data, ls):
-    cov_matrix = get_cov_matrix(data, ls)
+
+def get_cosmic_variance(data, ls, fsky=1):
+    cov_matrix = get_cov_matrix(data, ls, fsky=fsky)
     error_array = np.sqrt(cov_matrix.diagonal(axis1=1, axis2=2)).T
-    print(error_array)
-    error_dict = {
-        key : error_array[i]
-        for i, key in enumerate(data.keys())
-    }
+    # print(error_array)
+    error_dict = {key: error_array[i] for i, key in enumerate(data.keys())}
+    return error_dict
+
+
+def get_crossfreq_variance(
+    Dls_11: dict,
+    Dls_12: dict,
+    Dls_22: dict,
+    lb,
+    bin_size,
+    fsky_1=1,
+    fsky_2=None,
+    only_var=False,
+):
+    if fsky_2 == None:
+        fsky = fsky_1
+    else:
+        fsky = np.sqrt(fsky_1 * fsky_2)
+    nu = (2 * lb + 1) * bin_size * fsky
+    # fac = (lb * (lb + 1) / 2 * pi)
+    error_dict = {}
+    for X, Y in itertools.product(["T", "E", "B"], repeat=2):
+        if X == Y:
+            error_dict[X + Y] = np.sqrt(
+                (
+                    Dls_11["hm1hm1"][X + Y] * Dls_22["hm2hm2"][X + Y]
+                    + Dls_22["hm1hm1"][X + Y] * Dls_11["hm2hm2"][X + Y]
+                    + Dls_12["hm1hm2"][X + Y] * Dls_12["hm2hm1"][X + Y]
+                    + 2
+                    * (
+                        Dls_12["hm1hm1"][X + Y] * Dls_12["hm2hm2"][X + Y]
+                        + Dls_11["hm1hm2"][X + Y] * Dls_22["hm2hm1"][X + Y]
+                    )
+                )
+                / 4
+                / nu
+            )
+        #     else:
+        #         error_dict[X + Y] = np.sqrt(
+        #             (Dls_11["hm1hm2"][X + X] * Dls_22["hm2hm2"][Y + Y] + Dls_12["hm1hm2"][X + Y] ** 2) / nu
+        #         )
+
+        if only_var:
+            error_dict[X + Y] = np.sqrt(
+                (
+                    Dls_12["hm1hm2"][X + Y] ** 2
+                    + Dls_11["hm1hm1"][X + X] * Dls_22["hm2hm2"][Y + Y]
+                    + Dls_11["hm2hm2"][X + X] * Dls_22["hm1hm1"][Y + Y]
+                    + Dls_12["hm2hm1"][X + Y] ** 2
+                    + Dls_12["hm2hm2"][X + X] * Dls_12["hm1hm1"][Y + Y]
+                    + Dls_22["hm2hm2"][X + X] * Dls_11["hm1hm1"][Y + Y]
+                    + Dls_12["hm2hm1"][Y + X] ** 2
+                    + Dls_12["hm1hm2"][Y + X] ** 2
+                )
+                / 16
+                / nu
+            )
+
+        else:
+            error_dict[X + Y] = np.sqrt(
+                (
+                    Dls_12["hm1hm2"][X + Y] ** 2
+                    + Dls_11["hm1hm1"][X + X] * Dls_22["hm2hm2"][Y + Y]
+                    + 2 * Dls_11["hm1hm2"][X + X] * Dls_22["hm1hm2"][Y + Y]
+                    + 2 * Dls_12["hm1hm1"][X + X] * Dls_12["hm2hm2"][Y + Y]
+                    + 2 * Dls_12["hm1hm2"][X + X] * Dls_12["hm1hm2"][Y + Y]
+                    + 2 * Dls_12["hm2hm1"][X + X] * Dls_12["hm2hm1"][Y + Y]
+                    + 2 * Dls_12["hm2hm2"][X + X] * Dls_12["hm1hm1"][Y + Y]
+                    + 2 * Dls_22["hm1hm1"][X + X] * Dls_11["hm2hm2"][Y + Y]
+                    + 2 * Dls_11["hm1hm1"][X + Y] * Dls_22["hm2hm2"][X + Y]
+                    + 2 * Dls_11["hm1hm2"][X + Y] * Dls_22["hm1hm2"][X + Y]
+                    + 2 * Dls_12["hm1hm1"][X + Y] * Dls_12["hm2hm2"][X + Y]
+                    + Dls_11["hm2hm2"][X + X] * Dls_22["hm1hm1"][Y + Y]
+                    + Dls_12["hm2hm1"][X + Y] ** 2
+                    + Dls_12["hm2hm2"][X + X] * Dls_12["hm1hm1"][Y + Y]
+                    + Dls_22["hm2hm2"][X + X] * Dls_11["hm1hm1"][Y + Y]
+                    + 2 * Dls_11["hm2hm1"][X + Y] * Dls_22["hm2hm1"][X + Y]
+                    + 2 * Dls_12["hm1hm1"][Y + X] * Dls_12["hm2hm2"][Y + X]
+                    + 2 * Dls_11["hm2hm2"][X + Y] * Dls_22["hm1hm1"][X + Y]
+                    + Dls_12["hm2hm1"][Y + X] ** 2
+                    + Dls_12["hm1hm2"][Y + X] ** 2
+                )
+                / 16
+                / nu
+            )
     return error_dict
 
 
