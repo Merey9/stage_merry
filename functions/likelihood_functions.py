@@ -435,10 +435,7 @@ def get_loglike_beta(
     # for s1, s2, s3, s4 in tqdm(product(np.arange(len(alphas)), repeat=4)):
     #     if s1 == s2 or s3 == s4 or s1 == s3 or s1 == s4 or s2 == s3 or s2 == s4:
     #         continue
-    model_EB = np.zeros((len(ls), 1), dtype=float)
-    observation_EB = np.zeros((len(ls), 1), dtype=float)
     chi2_list = np.zeros_like(ls, dtype=float)
-    error_EB = np.zeros_like(ls, dtype=float)
 
     r_matrix = get_r_matrix(beta, beta)
 
@@ -474,19 +471,24 @@ def get_loglike_beta(
 
         observation_ij = get_obs_Cls(ls, data, splits[s1], splits[s2])
         observation_pq = get_obs_Cls(ls, data, splits[s3], splits[s4])
+        
+        # Create a mask for filtering the ls array
+        mask = (ls >= lmin) & (ls <= lmax)
 
-        for b in range(len(ls)):
-            if ls[b] < lmin or ls[b] > lmax:
-                continue
-            # if b != 100:
-            #     continue
-            rT_Cls_ij[b] = (
-                np.dot(r_matrix, observation_ij[b][0:2]) - observation_ij[b][2]
-            )
-            rT_Cls_pq[b] = (
-                np.dot(r_matrix, observation_pq[b][0:2]) - observation_pq[b][2]
-            )
-            chi2_list[b] += rT_Cls_ij[b] / cov[b] * rT_Cls_pq[b]
+        # Apply the mask to filter the relevant entries
+        filtered_observation_ij = observation_ij[mask]
+        filtered_observation_pq = observation_pq[mask]
+        filtered_cov = cov[mask]
+
+        # Compute rT_Cls_ij and rT_Cls_pq in a vectorized manner
+        rT_Cls_ij = np.dot(filtered_observation_ij[:, 0:2], r_matrix.T) - filtered_observation_ij[:, 2]
+        rT_Cls_pq = np.dot(filtered_observation_pq[:, 0:2], r_matrix.T) - filtered_observation_pq[:, 2]
+
+        # Compute chi-squared contributions in a vectorized manner
+        chi2_contributions = (rT_Cls_ij / filtered_cov) * rT_Cls_pq
+
+        # Sum up the contributions and compute the likelihood
+        chi2_list[mask] += chi2_contributions
     return - np.sum(chi2_list) / 2
 
 
