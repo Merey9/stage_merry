@@ -429,7 +429,7 @@ def load_cov_matrix(ls, data, file_name, splits, splits_iter):
     return cov_matrices
 
 
-def get_chi2_beta(
+def get_loglike_beta(
     ls, data, splits, beta, lmin, lmax, binning_file, method="product", date_float="0"
 ):
     # for s1, s2, s3, s4 in tqdm(product(np.arange(len(alphas)), repeat=4)):
@@ -487,7 +487,7 @@ def get_chi2_beta(
                 np.dot(r_matrix, observation_pq[b][0:2]) - observation_pq[b][2]
             )
             chi2_list[b] += rT_Cls_ij[b] / cov[b] * rT_Cls_pq[b]
-    return observation_EB, model_EB, error_EB, chi2_list
+    return - np.sum(chi2_list) / 2
 
 
 def get_chi2(ls, data, splits, alphas, beta, lmin, lmax, binning_file):
