@@ -301,7 +301,7 @@ def get_fisher_matrix(
     step=0.02,
     plot_noise=None,
     dont_sum=False,
-    fsky=0.7,
+    fsky=1,
 ):
     """Compute Fisher matrix for given cosmo parameters
 

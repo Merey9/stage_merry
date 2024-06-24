@@ -33,21 +33,27 @@ def get_nls(sensitivities: dict, theta_FWHM: float, lmax: int):
 
 def get_total_noise(charact_detec: dict, lmax=1000):
     nls_dict = {}
-    for band in charact_detec.keys():
-        theta_FWHM, s_T, s_pol = charact_detec[band]
+    if type(charact_detec) == dict:
+        for band in charact_detec.keys():
+            theta_FWHM, s_T, s_pol = charact_detec[band]
+            s = {"TT": s_T, "EE": s_pol, "BB": s_pol}
+            nls = get_nls(s, theta_FWHM, lmax=lmax)
+            nls_dict[band] = nls
+        total_nls1 = {}
+        for band in charact_detec.keys():
+            for key in nls.keys():
+                total_nls1[key] = np.zeros_like(nls_dict[band][key], dtype=float)
+        for band in charact_detec.keys():
+            for key in nls.keys():
+                total_nls1[key] += 1 / nls_dict[band][key]
+        total_nls = {}
+        for key in nls.keys():
+            total_nls[key] = 1 / total_nls1[key]
+    elif type(charact_detec) == list:
+        theta_FWHM, s_T, s_pol = charact_detec
         s = {"TT": s_T, "EE": s_pol, "BB": s_pol}
-        nls = get_nls(s, theta_FWHM, lmax=lmax)
-        nls_dict[band] = nls
-    total_nls1 = {}
-    for band in charact_detec.keys():
-        for key in nls.keys():
-            total_nls1[key] = np.zeros_like(nls_dict[band][key], dtype=float)
-    for band in charact_detec.keys():
-        for key in nls.keys():
-            total_nls1[key] += 1 / nls_dict[band][key]
-    total_nls = {}
-    for key in nls.keys():
-        total_nls[key] = 1 / total_nls1[key]
+        total_nls = get_nls(s, theta_FWHM, lmax=lmax)
+        print("oufufz")
 
     return total_nls
 
