@@ -1,5 +1,6 @@
-import sys 
-sys.path.append('/data/stage_merry/functions') 
+import sys
+
+sys.path.append("/data/stage_merry/functions")
 import numpy as np
 from math import radians, pi
 from simu import *

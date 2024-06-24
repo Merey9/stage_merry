@@ -26,9 +26,9 @@ comp_bool = False
 plot_err_bool = plot_bool
 plot_err_comp = False
 
-date_float = "0530_0810"
+date_float = "0618_0500"  # _beta0.2_beta0.3 ...
 
-cross_spec_key = "BB"
+cross_spec_key = "EB"
 
 filename = "Planck/Figures/Planck_all_band_%s_%s_new_fsky5" % (
     cross_spec_key,
@@ -42,6 +42,8 @@ if plot_err_comp:
 filename += ".png"
 
 binning_file = "data/spectra/planck/binning/bin_planck.dat"
+binning_file = "data/spectra/maison/binning/binning%s.dat" % (date_float)
+
 bin_lo, bin_hi, l_bin, bin_size = pspy_utils.read_binning_file(binning_file, lmax=3000)
 
 spec_xlims = {
@@ -73,6 +75,7 @@ spec_ylims_res = {
 
 # Compute fskys
 fskys_dict = {}
+
 for BAND in ["100", "143", "217"]:
     fskys_dict[BAND] = {}
     for pol_or_temp in ["temperature", "polarization"]:
@@ -97,6 +100,9 @@ BAND_iter = [
     ("100", "143"),
     ("100", "217"),
     ("143", "217"),
+    ("143", "100"),
+    ("217", "100"),
+    ("217", "143"),
 ]
 # BAND_iter = [("100", "100"), ("100", "143"), ("143", "143"), ("100", "217")]
 
@@ -110,7 +116,7 @@ plt.tight_layout()
 # Create a dict with more conveniant keys:
 # ex : T1431E2172
 data = {}
-for BAND_1, BAND_2 in product(["100", "143", "217"], repeat=2):
+for BAND_1, BAND_2 in BAND_iter:
     for hm_1, hm_2 in hms_list:
         lb, current_spectra = so_spectra.read_ps(
             "data/spectra/maison/Dls_%shm%sx%shm%s_%s.dat"
@@ -137,7 +143,6 @@ for i, (BAND_1, BAND_2) in tqdm(enumerate(BAND_iter)):
 
     # Compute indices for the binning file
     bin_indices = [i for i, value in enumerate(l_bin) if value in set(lb)]
-
     Dls_sum = {cross_spec_key: np.zeros_like(data["T1001T1001"], dtype=float)}
 
     first_keys = []

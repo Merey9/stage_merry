@@ -20,6 +20,8 @@ def fac(ls):
 
 
 date_float = datetime.datetime.now().strftime("%m%d_%H%M")
+# for beta_deg in [0.1, 0.2, 0.3, 0.4, 0.5, 0.7, 1., 1.5]:
+# date_float += '_beta%s' % (beta_deg)
 print("run %s" % date_float)
 # date_float = "0530_0810"
 
@@ -41,6 +43,9 @@ binned_mcm = False
 adapt_lmax = False
 start_at_2_bool = False
 get_fskys = False
+
+which_maps = "Planck_DR4"  # Planck_legacy,  biref_0.1..., Planck_DR4
+which_mask = "biref"  # Planck,  biref ...
 
 niter = 3
 
@@ -81,6 +86,12 @@ if same_fig_bool:
     fig.subplots_adjust(hspace=0.2, wspace=0.2)  # Adjust the spacing between subplots
     plt.tight_layout()
 
+if which_mask == "biref":
+    mask_pol_1 = so_map.read_map("data/maps/comb_0_mask_hfi_lfi_nside_2048.fits")
+    mask_pol_2 = mask_pol_1.copy()
+    mask_T_1 = mask_pol_1.copy()
+    mask_T_2 = mask_pol_1.copy()
+
 for BAND_1, BAND_2 in tqdm(BAND_iter):
     filename = filename.format(BAND_1, BAND_2)
     lmax_iter = LMAX
@@ -117,36 +128,64 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
                     pass
 
         ### Reading CMB maps
-        map_1 = so_map.read_map(
-            "data/maps/HFI_SkyMap_%s_2048_R3.01_halfmission-%s.fits" % (BAND_1, hm_B1),
-            fields_healpix=(0, 1, 2),
-        )
-        map_1.data *= 1e6
+        if which_maps == "Planck_legacy":
+            map_1 = so_map.read_map(
+                "data/maps/HFI_SkyMap_%s_2048_R3.01_halfmission-%s.fits"
+                % (BAND_1, hm_B1),
+                fields_healpix=(0, 1, 2),
+            )
 
-        map_2 = so_map.read_map(
-            "data/maps/HFI_SkyMap_%s_2048_R3.01_halfmission-%s.fits" % (BAND_2, hm_B2),
-            fields_healpix=(0, 1, 2),
-        )
-        map_2.data *= 1e6
+            map_2 = so_map.read_map(
+                "data/maps/HFI_SkyMap_%s_2048_R3.01_halfmission-%s.fits"
+                % (BAND_2, hm_B2),
+                fields_healpix=(0, 1, 2),
+            )
+
+        if which_maps == "Planck_DR4":
+            map_1 = so_map.read_map(
+                "data/maps/HFI_SkyMap_%s-BPassCorrected_2048_R4.00_full-ringhalf-%s.fits"
+                % (BAND_1, hm_B1),
+                fields_healpix=(0, 1, 2),
+            )
+
+            map_2 = so_map.read_map(
+                "data/maps/HFI_SkyMap_%s-BPassCorrected_2048_R4.00_full-ringhalf-%s.fits"
+                % (BAND_2, hm_B2),
+                fields_healpix=(0, 1, 2),
+            )
+
+        if which_maps == "simu_biref_1":
+            map_1 = so_map.read_map(
+                "data/maps/maison/LCDM_biref_%s_%s_hm%s.fits"
+                % (beta_deg, BAND_1, hm_B1),
+                fields_healpix=(0, 1, 2),
+            )
+
+            map_2 = so_map.read_map(
+                "data/maps/maison/LCDM_biref_%s_%s_hm%s.fits"
+                % (beta_deg, BAND_2, hm_B2),
+                fields_healpix=(0, 1, 2),
+            )
 
         # print("Masks")
         ### Reading masks maps
-        mask_pol_1 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
-            % (BAND_1, hm_B1)
-        )
-        mask_pol_2 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
-            % (BAND_2, hm_B2)
-        )
-        mask_T_1 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
-            % (BAND_1, hm_B1)
-        )
-        mask_T_2 = so_map.read_map(
-            "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
-            % (BAND_2, hm_B2)
-        )
+        if which_mask == "Planck":
+            mask_pol_1 = so_map.read_map(
+                "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
+                % (BAND_1, hm_B1)
+            )
+            mask_pol_2 = so_map.read_map(
+                "data/maps/COM_Mask_Likelihood-polarization-%s-hm%s_2048_R3.00.fits"
+                % (BAND_2, hm_B2)
+            )
+            mask_T_1 = so_map.read_map(
+                "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
+                % (BAND_1, hm_B1)
+            )
+            mask_T_2 = so_map.read_map(
+                "data/maps/COM_Mask_Likelihood-temperature-%s-hm%s_2048_R3.00.fits"
+                % (BAND_2, hm_B2)
+            )
 
         if get_fskys:
             print(so_window.get_survey_solid_angle(mask_T_1) / (4 * pi))
@@ -159,6 +198,8 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
         map_1.subtract_mono_dipole(mask=(mask_T_1, mask_pol_1))
         map_2.subtract_mono_dipole(mask=(mask_T_2, mask_pol_2))
 
+        map_1.data *= 1e6
+        map_2.data *= 1e6
         ### Compute spectra from masked maps
         almsList_1 = sph_tools.get_alms(
             map_1, (mask_T_1, mask_pol_1), niter=niter, lmax=lmax_iter
@@ -241,30 +282,6 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
             binned_mcm=binned_mcm,
         )
 
-        #    lb_1, cls_dict_bin_1 = so_spectra.bin_spectra(
-        #        ls_11,
-        #        cls_dict_pspy_1,
-        #        binning_file,
-        #        lmax=lmax_iter,
-        #        type="Dl",
-        #        mbb_inv=mbb_inv,
-        #        spectra=spec_keys_pspy,
-        #        binned_mcm=binned_mcm,
-        #    )
-        #
-        #    lb_2, cls_dict_bin_2 = so_spectra.bin_spectra(
-        #        ls_22,
-        #        cls_dict_pspy_2,
-        #        binning_file,
-        #        lmax=lmax_iter,
-        #        type="Dl",
-        #        mbb_inv=mbb_inv,
-        #        spectra=spec_keys_pspy,
-        #        binned_mcm=binned_mcm,
-        #    )
-
-        # assert len(ls_12) == len(ls_11)
-
         ### Computing error
         if err_plot_bool:
             error_dict = get_cosmic_variance(cls_dict_bin, ls=lb)
@@ -279,88 +296,3 @@ for BAND_1, BAND_2 in tqdm(BAND_iter):
                 "Dl",
                 spectra=cls_dict_bin.keys(),
             )
-        #     so_spectra.write_ps(
-        #         "data/spectra/maison/Dls_%sx%s_%s_11.dat" % (BAND_1, BAND_2, date_float),
-        #         lb,
-        #         cls_dict_bin_1,
-        #         "Dl",
-        #         spectra=cls_dict_bin_1.keys(),
-        #     )
-        #     so_spectra.write_ps(
-        #         "data/spectra/maison/Dls_%sx%s_%s_22.dat" % (BAND_1, BAND_2, date_float),
-        #         lb,
-        #         cls_dict_bin_2,
-        #         "Dl",
-        #         spectra=cls_dict_bin_2.keys(),
-        #     )
-
-    # print(cls_dict_bin.keys())
-
-    if plot_bool:
-        print("Plotting")
-        ### Plotting over wanted keys
-        row, col = 0, 0
-        for i, key in enumerate(spec_keys_to_plot):
-            row = i // cols
-            col = i % cols
-            axs[row, col].set_title(key)
-
-            if not comp_plot_bool:
-                axs[row, col].plot(
-                    lb,
-                    cls_dict_bin[key],
-                    label="%sx%s" % (BAND_1, BAND_2),
-                    color=color_band[BAND_1],
-                )
-                if key in ["TT", "EE", "BB"]:
-                    axs[row, col].semilogy()
-
-                if key in data_Planck.keys():
-                    axs[row, col].errorbar(
-                        data_Planck[key][0],
-                        data_Planck[key][1] * fac(data_Planck[key][0]),
-                        data_Planck[key][2] * fac(data_Planck[key][0]),
-                        linestyle="None",
-                        marker=".",
-                        color="black",
-                        alpha=0.8,
-                        label="Planck release",
-                    )
-            if comp_plot_bool:
-                try:
-                    comp_indices = [
-                        i
-                        for i, value in enumerate(lb)
-                        if value in set(data_Planck[key][0])
-                    ]
-                    cls_comp = [cls_dict_bin[key][i] for i in comp_indices]
-                    axs[row, col].plot(
-                        data_Planck[key][0],
-                        (cls_comp - (data_Planck[key][1] * fac(data_Planck[key][0])))
-                        / (data_Planck[key][2] * fac(data_Planck[key][0])),
-                        label="%sx%s" % (BAND_1, BAND_2),
-                    )  # , color=color_band[BAND_1]
-                except:
-                    pass
-
-            if err_plot_bool:
-                axs[row, col].fill_between(
-                    lb,
-                    cls_dict_bin[key] - error_dict[key] / np.sqrt(bin_size),
-                    cls_dict_bin[key] + error_dict[key] / np.sqrt(bin_size),
-                    alpha=0.3,
-                    color="grey",
-                    label="Effective noise",
-                    zorder=-10,
-                )
-            axs[row, col].legend()
-        if not same_fig_bool:
-            # plt.grid()
-            plt.savefig(filename)
-            plt.clf()
-
-if same_fig_bool:
-    # plt.grid()
-    # plt.ylim(-2, 2)
-    plt.savefig(filename)
-    plt.clf()
